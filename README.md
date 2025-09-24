@@ -35,7 +35,7 @@ flexible usage.
 
 A video utility node for adjusting frame rate (FPS).
 - Inputs: `original_fps`, `target_fps`, and `method`.
-- Methods available:\
+- Methods available:
 - **downsample** (reduce FPS by skipping frames)
 - **duplicate** (increase FPS by repeating frames)
 - **interpolate** (smoothly increase FPS by interpolating frames)
@@ -50,6 +50,18 @@ A speech-to-text (STT) node powered by
 - Supports automatic language detection (`language="auto"`) or manual
 specification.
 
+---
+
+## 📸 Screenshots
+Here are some examples of the nodes inside ComfyUI:
+
+### Amage Text & Amage All in One
+![Text Nodes](images/example1.jpg)
+
+### Amage FPS Converter and  Amage STT
+![FPS Converter](images/example2.jpg)
+
+---
 
 ## 🔧 Installation
 
