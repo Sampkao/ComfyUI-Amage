@@ -58,7 +58,7 @@ Here are some examples of the nodes inside ComfyUI:
 ### Amage Text & Amage All in One
 ![Text Nodes](images/example1.jpg)
 
-### Amage FPS Converter and  Amage STT
+### Amage FPS Converter & Amage STT
 ![FPS Converter](images/example2.jpg)
 
 ---
