@@ -1,5 +1,8 @@
 # Amage ComfyUI Custom Nodes
 
+[![Comfy Registry](https://img.shields.io/endpoint?url=https%3A%2F%2Fregistry.comfy.org%2Fapi%2Fv1%2Fstatus%2Famage)](https://registry.comfy.org/nodes/amage)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 This repository provides a set of custom nodes for
 [ComfyUI](https://github.com/comfyanonymous/ComfyUI), designed to
 improve workflow convenience when working with text, image, video, and
@@ -65,6 +68,12 @@ Here are some examples of the nodes inside ComfyUI:
 
 ## 🔧 Installation
 
+### Method 1: Via ComfyUI-Manager (Recommended)
+1. Search for **"Amage"** in the Custom Nodes Manager.
+2. Click **Install**.
+3. Restart ComfyUI.
+
+### Method 2: Manual Installation
 1.  Clone or download this repository into your ComfyUI `custom_nodes`
     folder:
 
@@ -77,6 +86,7 @@ Here are some examples of the nodes inside ComfyUI:
 3.  The new nodes will appear under categories like **Amage/Audio**,
     **Amage/Video**, and **Text**.
 
+[!IMPORTANT] For Amage STT Node: > Please ensure the Whisper model is placed at: ComfyUI/models/sonic/whisper-tiny. You may need to create these folders manually.
 ------------------------------------------------------------------------
 
 ## 📜 License
