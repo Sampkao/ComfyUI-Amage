@@ -1,8 +1,5 @@
 # Amage ComfyUI Custom Nodes
 
-[![Comfy Registry](https://img.shields.io/endpoint?url=https%3A%2F%2Fregistry.comfy.org%2Fapi%2Fv1%2Fstatus%2Famage)](https://registry.comfy.org/nodes/amage)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
 This repository provides a set of custom nodes for
 [ComfyUI](https://github.com/comfyanonymous/ComfyUI), designed to
 improve workflow convenience when working with text, image, video, and
@@ -46,12 +43,39 @@ A video utility node for adjusting frame rate (FPS).
 ### 4. Amage STT (`AmageSTTNode`)
 
 A speech-to-text (STT) node powered by
-[Whisper-tiny](https://github.com/openai/whisper).
+[Whisper](https://github.com/openai/whisper).
 - Converts input audio into text.
 - Automatically searches for the model at:
-`models/sonic/whisper-tiny`
+`models/sonic/whisper-medium`
 - Supports automatic language detection (`language="auto"`) or manual
 specification.
+
+### 5. Amage VRAM Cleaner (`AmageVramCleanerNode`)
+
+A utility node for releasing GPU VRAM during a workflow.
+- Unloads models tracked by ComfyUI, clears available CUDA cache, and runs
+  Python garbage collection.
+- Passes its input through to the output, so it can be placed between
+  workflow stages without interrupting the data connection.
+- Provides an optional `label` input for identifying cleanup operations in
+  the console log.
+
+### 6. Amage Text Converter (`AmageTextConvertNode`)
+
+A text conversion and translation node. Select one of the following modes:
+- `t2s (繁轉簡)` — converts Traditional Chinese to Simplified Chinese.
+- `s2t (簡轉繁)` — converts Simplified Chinese to Traditional Chinese.
+- `zh-en (中翻英)` — translates Chinese to English.
+- `en-zh (英翻中)` — translates English to Chinese.
+
+Chinese script conversion requires OpenCC (`opencc-python-reimplemented`).
+Chinese-English translation uses Google Translate through `deep-translator`
+and requires an internet connection. Install both packages in the same
+Python environment used by ComfyUI:
+
+```bash
+python -m pip install opencc-python-reimplemented deep-translator
+```
 
 ---
 
@@ -68,25 +92,18 @@ Here are some examples of the nodes inside ComfyUI:
 
 ## 🔧 Installation
 
-### Method 1: Via ComfyUI-Manager (Recommended)
-1. Search for **"Amage"** in the Custom Nodes Manager.
-2. Click **Install**.
-3. Restart ComfyUI.
-
-### Method 2: Manual Installation
 1.  Clone or download this repository into your ComfyUI `custom_nodes`
     folder:
 
     ``` bash
-    git clone https://github.com/Sampkao/ComfyUI-Amage.git
+    git clone https://github.com/Sampkao/Amage.git
     ```
 
 2.  Restart ComfyUI.
 
-3.  The new nodes will appear under categories like **Amage/Audio**,
-    **Amage/Video**, and **Text**.
+3.  The nodes will appear under categories including **Amage/Audio**,
+    **Amage/Video**, **Amage/Utils**, **Amage/Text**, and **Text**.
 
-[!IMPORTANT] For Amage STT Node: > Please ensure the Whisper model is placed at: ComfyUI/models/sonic/whisper-tiny. You may need to create these folders manually.
 ------------------------------------------------------------------------
 
 ## 📜 License
