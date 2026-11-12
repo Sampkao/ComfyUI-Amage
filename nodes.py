@@ -1,17 +1,134 @@
 import torch
 import numpy as np
+import torchaudio.transforms as T
 from torch import nn
 from torchvision.transforms.functional import to_tensor, to_pil_image
 from PIL import Image
 from transformers import pipeline
 import folder_paths
+import gc
 
+class AmageTextConvertNode:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "text": ("STRING", {"multiline": True, "default": ""}),
+                "mode": ([
+                    "t2s (繁轉簡)", 
+                    "s2t (簡轉繁)", 
+                    "zh-en (中翻英)", 
+                    "en-zh (英翻中)"
+                ], {"default": "t2s (繁轉簡)"}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    FUNCTION = "convert_text"
+    CATEGORY = "Amage/Text"
+
+    def convert_text(self, text, mode):
+        if not text or text.strip() == "":
+            return ("",)
+            
+        try:
+            # 處理本地繁簡轉換 (OpenCC)
+            if "t2s" in mode or "s2t" in mode:
+                from opencc import OpenCC
+                # 提取模式代碼 (t2s 或 s2t)
+                clean_mode = "t2s" if "t2s" in mode else "s2t"
+                cc = OpenCC(clean_mode)
+                return (cc.convert(text),)
+
+            # 處理 Google 翻譯 (deep-translator)
+            elif "zh-en" in mode or "en-zh" in mode:
+                from deep_translator import GoogleTranslator
+
+                if "zh-en" in mode:
+                    # 中翻英：明確指定 source 為 zh-CN (相容繁簡)
+                    translator = GoogleTranslator(source='zh-TW', target='en')
+                    translated = translator.translate(text)
+                else:
+                    # 英翻中：目標改為 zh-CN
+                    translator = GoogleTranslator(source='en', target='zh-TW')
+                    translated = translator.translate(text)
+                
+                # 如果翻譯結果為空或出錯，回傳原文字並加上提示
+                return (translated if translated else text,)
+
+        except Exception as e:
+            return (f"[Convert Error] {str(e)}",)
+        
+class AmageVramCleanerNode:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "any_input": ("*",), 
+            },
+            "optional": {
+                "label": ("STRING", {"default": "Deep VRAM Cleanup"}),
+            }
+        }
+
+    RETURN_TYPES = ("*",)
+    RETURN_NAMES = ("output",)
+    FUNCTION = "clean_vram"
+    CATEGORY = "Amage/Utils"
+
+    def clean_vram(self, any_input, label=""):
+        import comfy.model_management as model_management
+        import gc
+        import torch
+
+        print(f"🔷 [Amage] {label} • Starting Deep Cleanup 🔷")
+
+        try:
+            # 1. 卸載所有 ComfyUI 追蹤的模型
+            # 這會將模型移出顯存，是清理的最前端步驟
+            model_management.unload_all_models()
+            
+            # 2. 同步硬體並執行第一波清理
+            # 包含 torch.cuda.synchronize() 確保 GPU 任務已完成
+            model_management.soft_empty_cache(True)
+
+            # 3. 強制執行 Python 垃圾回收
+            # 釋放所有不再使用的 Tensor 物件引用
+            gc.collect()
+
+            # 4. 深度 CUDA 清理 (參考範例)
+            if torch.cuda.is_available():
+                # 第一回清理：釋放剛被 GC 回收的顯存
+                torch.cuda.empty_cache()
+                
+                # 清理 CUDA IPC (進程間通訊) 句柄，解決某些量化模型殘留顯存的問題
+                torch.cuda.ipc_collect()
+                
+                # 掃描並移除死掉的模型包裝器 (Dead Wrappers)
+                model_management.cleanup_models()
+                
+                # 第二回清理：確保殘留的碎片被徹底清空
+                torch.cuda.empty_cache()
+                
+                # 重置峰值統計 (可選)
+                try:
+                    torch.cuda.reset_peak_memory_stats()
+                except:
+                    pass
+
+            print(f"✅ [Amage] Deep Cleanup Complete.")
+
+        except Exception as e:
+            print(f"❌ [Amage] Cleanup Error: {e}")
+
+        return (any_input,)
+    
 class AmageSTTNode:
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "audio": ("AUDIO",),  # 前一節點的音訊
+                "audio": ("AUDIO",), 
                 "language": ("STRING", {"default": "auto"}),
             }
         }
@@ -21,64 +138,55 @@ class AmageSTTNode:
     CATEGORY = "Amage/Audio"
 
     def __init__(self):
-        model_path = folder_paths.models_dir + "/sonic/whisper-tiny"
+        # 建議模型路徑保持一致
+        model_path = folder_paths.models_dir + "/sonic/whisper-medium"
         self.pipe = pipeline(
             task="automatic-speech-recognition",
             model=model_path,
-            device=0 if torch.cuda.is_available() else -1
+            chunk_length_s=30, # 修正長音訊報錯：自動切片
+            device="cuda" if torch.cuda.is_available() else "cpu",
+            torch_dtype=torch.float16 # 使用半精度可以跑更快，且依然節省一半顯存
         )
 
     def transcribe(self, audio, language="auto"):
         try:
-            # ---------- 1. 取值 ----------
             if audio is None:
                 return ("",)
 
-            # ComfyUI 的 AUDIO 通常是 dict { "waveform": tensor, "sample_rate": int }
-            if isinstance(audio, dict) and "waveform" in audio:
-                audio = audio["waveform"]
+            # ---------- 1. 取值與採樣率校正 ----------
+            waveform = audio["waveform"] # 假設格式為 [Batch, Channel, Samples]
+            sr = audio["sample_rate"]
 
-            # ---------- 2. 轉 numpy ----------
-            if isinstance(audio, torch.Tensor):
-                audio_np = audio.detach().cpu().numpy()
-            elif isinstance(audio, np.ndarray):
-                audio_np = audio
-            else:
-                return ("[STT Error] Unsupported audio type",)
+            # ---------- 2. 重採樣至 16000Hz (Whisper 必要條件) ----------
+            if sr != 16000:
+                resampler = T.Resample(sr, 16000)
+                waveform = resampler(waveform)
 
-            # ---------- 3. 砍掉 batch 維度（如果存在） ----------
-            # 可能的 shape：
-            #   (1, channels, samples)  -> (channels, samples)
-            #   (1, samples, channels)  -> (samples, channels)
-            if audio_np.ndim == 3 and audio_np.shape[0] == 1:
-                audio_np = audio_np[0]
+            # ---------- 3. 轉為單聲道並標準化 ----------
+            # 如果是多聲道 [B, C, S]，取平均值
+            if waveform.ndim == 3:
+                waveform = torch.mean(waveform, dim=1) 
+            
+            # 移除 Batch 維度，轉為 numpy float32
+            audio_np = waveform.squeeze().cpu().numpy().astype(np.float32)
 
-            # ---------- 4. 轉 float32 ----------
-            audio_np = audio_np.astype(np.float32)
-
-            # ---------- 5. 處理聲道 ----------
-            if audio_np.ndim == 2:
-                # channel-first (2, samples) 的情況
-                if audio_np.shape[0] <= 2:
-                    audio_np = np.mean(audio_np, axis=0)
-                # channel-last (samples, 2) 的情況
-                else:
-                    audio_np = np.mean(audio_np, axis=1)
-
-            if audio_np.ndim != 1:
-                return (f"[STT Error] Unexpected final shape {audio_np.shape}",)
-
-            # ---------- 6. 送入 Whisper ----------
+            # ---------- 4. 送入 Whisper (加入長格式參數) ----------
+            # 設定 return_timestamps=True 解決超過 30 秒的報錯
             result = self.pipe(
                 audio_np,
-                generate_kwargs={"language": None if language == "auto" else language}
+                generate_kwargs={
+                    "language": None if language == "auto" else language,
+                    "return_timestamps": True ,
+                    "task": "transcribe"
+                }
             )
+            
             text = result.get("text", "").strip()
             return (text,)
 
         except Exception as e:
-            return (f"[STT Error] {e}",)
-        
+            return (f"[STT Error] {e}",) 
+               
 class AmageFpsConverterNode:
     @classmethod
     def INPUT_TYPES(cls):
