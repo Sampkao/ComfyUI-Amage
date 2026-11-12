@@ -1,0 +1,8 @@
+# Dependencies provided by the ComfyUI environment (install compatible builds
+# through ComfyUI's PyTorch/CUDA instructions; do not install from this file):
+# torch
+# torchvision
+# torchaudio
+
+opencc-python-reimplemented
+deep-translator
